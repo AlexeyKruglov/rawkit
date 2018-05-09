@@ -2,6 +2,10 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
+#
+#  Updated against version 0.19.0-Beta4 (commit 230c877) of https://github.com/LibRaw/LibRaw
+#
+
 from ctypes import *  # noqa
 
 
@@ -42,6 +46,16 @@ class libraw_iparams_t(Structure):
     ]
 
 
+class libraw_raw_crop_t(Structure):
+
+    _fields_ = [
+        ('cleft', c_ushort),
+        ('ctop', c_ushort),
+        ('cwidth', c_ushort),
+        ('cheight', c_ushort),
+    ]
+
+
 class libraw_image_sizes_t(Structure):
 
     """Describes the size of the image."""
@@ -58,12 +72,14 @@ class libraw_image_sizes_t(Structure):
         ('pixel_aspect', c_double),
         ('flip', c_int),
         ('mask', c_int * 8 * 4),
+        ('raw_crop', libraw_raw_crop_t),
     ]
 
 
 class libraw_dng_color_t(Structure):
 
     _fields_ = [
+        ('parsedfields', c_uint),
         ('illuminant', c_ushort),
         ('calibration', c_float * 4 * 4),
         ('colormatrix', c_float * 4 * 3),
@@ -77,8 +93,10 @@ class libraw_canon_makernotes_t(Structure):
         ('CanonColorDataVer', c_int),
         ('CanonColorDataSubVer', c_int),
         ('SpecularWhiteLevel', c_int),
+        ('NormalWhiteLevel', c_int),
         ('ChannelBlackLevel', c_int * 4),
         ('AverageBlackLevel', c_int),
+        ('multishot', c_uint * 4),
         ('MeteringMode', c_short),
         ('SpotMeteringMode', c_short),
         ('FlashMeteringMode', c_char),
@@ -122,16 +140,20 @@ class libraw_canon_makernotes_t(Structure):
         ('BlackMaskTopBorder', c_short),
         ('BlackMaskRightBorder', c_short),
         ('BlackMaskBottomBorder', c_short),
+        ('AFMicroAdjMode', c_int),
+        ('AFMicroAdjValue', c_float),
     ]
 
 
 class libraw_dng_levels_t(Structure):
 
     _fields_ = [
+        ('parsedfields', c_uint),
         ('dng_cblack', c_uint * 4102),
         ('dng_black', c_uint),
         ('dng_whitelevel', c_uint * 4),
-        ('dng_blacklevel', c_float * 4),
+        ('default_crop', c_uint * 4),
+        ('preview_colorspace', c_uint),
         ('analogbalance', c_float * 4),
     ]
 
@@ -213,6 +235,20 @@ class libraw_imgother_t(Structure):
         ('desc', c_char * 512),
         ('artist', c_char * 64),
         ('FlashEC', c_float),
+        ('FlashGN', c_float),
+        ('CameraTemperature', c_float),
+        ('SensorTemperature', c_float),
+        ('SensorTemperature2', c_float),
+        ('LensTemperature', c_float),
+        ('AmbientTemperature', c_float),
+        ('BatteryTemperature', c_float),
+        ('exifAmbientTemperature', c_float),
+        ('exifHumidity', c_float),
+        ('exifPressure', c_float),
+        ('exifWaterDepth', c_float),
+        ('exifAcceleration', c_float),
+        ('exifCameraElevationAngle', c_float),
+        ('real_ISO', c_float),
     ]
 
 
@@ -302,23 +338,9 @@ class libraw_output_params_t(Structure):
         ('dcb_iterations', c_int),
         ('dcb_enhance_fl', c_int),
         ('fbdd_noiserd', c_int),
-        ('eeci_refine', c_int),
-        ('es_med_passes', c_int),
-        ('ca_correc', c_int),
-        ('cared', c_float),
-        ('cablue', c_float),
-        ('cfaline', c_int),
-        ('linenoise', c_float),
-        ('cfa_clean', c_int),
-        ('lclean', c_float),
-        ('cclean', c_float),
-        ('cfa_green', c_int),
-        ('green_thresh', c_float),
         ('exp_correc', c_int),
         ('exp_shift', c_float),
         ('exp_preser', c_float),
-        ('wf_debanding', c_int),
-        ('wf_deband_treshold', c_float * 4),
         ('use_rawspeed', c_int),
         ('use_dngsdk', c_int),
         ('no_auto_scale', c_int),
@@ -458,6 +480,14 @@ class libraw_fuji_info_t(Structure):
     ]
 
 
+class libraw_hasselblad_makernotes_t(Structure):
+
+    _fields_ = [
+        ('BaseISO', c_int),
+        ('Gain', c_double),
+    ]
+
+
 class libraw_nikon_makernotes_t(Structure):
 
     _fields_ = [
@@ -501,6 +531,15 @@ class libraw_nikon_makernotes_t(Structure):
         ('FlashGroupControlMode', c_ubyte * 4),
         ('FlashGroupOutputAndCompensation', c_ubyte * 4),
         ('FlashColorFilter', c_ubyte),
+        #('FlashColorFilter', c_ushort),  #!!!debug!
+        ('NEFCompression', c_ushort),
+        ('ExposureMode', c_int),
+        ('nMEshots', c_int),
+        ('MEgainOn', c_int),
+        ('ME_WB', c_double * 4),
+        ('AFFineTune', c_ubyte),
+        ('AFFineTuneIndex', c_ubyte),
+        ('AFFineTuneAdj', c_int8),
     ]
 
 
@@ -518,6 +557,22 @@ class libraw_olympus_makernotes_t(Structure):
         ('AFResult', c_ushort),
         ('ImageStabilization', c_uint),
         ('ColorSpace', c_ushort),
+        ('AFFineTune', c_ubyte),
+        ('AFFineTuneAdj', c_short * 3),
+    ]
+
+
+class libraw_panasonic_makernotes_t(Structure):
+
+    _fields_ = [
+        # Compression:
+        # 34826 (Panasonic RAW 2): LEICA DIGILUX 2;
+        # 34828 (Panasonic RAW 3): LEICA D-LUX 3; LEICA V-LUX 1; Panasonic DMC-LX1; Panasonic DMC-LX2; Panasonic DMC-FZ30; Panasonic DMC-FZ50;
+        # 34830 (not in exiftool): LEICA DIGILUX 3; Panasonic DMC-L1;
+        # 34316 (Panasonic RAW 1): others (LEICA, Panasonic, YUNEEC);
+        ('Compression', c_ushort),
+        ('BlackLevelDim', c_ushort),
+        ('BlackLevel', c_float * 8),
     ]
 
 
@@ -525,12 +580,32 @@ class libraw_pentax_makernotes_t(Structure):
 
     _fields_ = [
         ('FocusMode', c_ushort),
-        ('AFPointMode', c_ubyte),
         ('AFPointSelected', c_ushort),
         ('AFPointsInFocus', c_uint),
+        ('FocusPosition', c_ushort),
         ('DriveMode', c_ubyte * 4),
-        ('SRResult', c_ubyte),
-        ('ShakeReduction', c_ubyte),
+        ('AFAdjustment', c_short),
+        # ('AFPointMode', c_ubyte),
+        # ('SRResult', c_ubyte),
+        # ('ShakeReduction', c_ubyte),
+    ]
+
+
+class libraw_kodak_makernotes_t(Structure):
+
+    _fields_ = [
+        ('BlackLevelTop', c_ushort),
+        ('BlackLevelBottom', c_ushort),
+        ('offset_left', c_short),       # KDC files, negative values or zeros
+        ('offset_top', c_short),        # KDC files, negative values or zeros
+        ('clipBlack', c_ushort),        # valid for P712, P850, P880
+        ('clipWhite', c_ushort),        # valid for P712, P850, P880
+        ('romm_camDaylight', c_float * 3 * 3),
+        ('romm_camTungsten', c_float * 3 * 3),
+        ('romm_camFluorescent', c_float * 3 * 3),
+        ('romm_camFlash', c_float * 3 * 3),
+        ('romm_camCustom', c_float * 3 * 3),
+        ('romm_camAuto', c_float * 3 * 3),
     ]
 
 
@@ -538,16 +613,41 @@ class libraw_sony_info_t(Structure):
 
     _fields_ = [
         ('SonyCameraType', c_ushort),
-    ]
+        ('Sony0x9400_version', c_ubyte),    # 0 if not found/deciphered, 0xa, 0xb, 0xc following exiftool convention
+        ('Sony0x9400_ReleaseMode2', c_ubyte),
+        ('Sony0x9400_SequenceImageNumber', c_uint),
+        ('Sony0x9400_SequenceLength1', c_ubyte),
+        ('Sony0x9400_SequenceFileNumber', c_uint),
+        ('Sony0x9400_SequenceLength2', c_ubyte),
+        ('raw_crop', libraw_raw_crop_t),
+        ('AFMicroAdjValue', c_int8),
+        ('AFMicroAdjOn', c_int8),
+        ('AFMicroAdjRegisteredLenses', c_ubyte),
+        ('group2010', c_ushort),
+        ('real_iso_offset', c_ushort),
+        ('firmware', c_float),
+        ('ImageCount3_offset', c_ushort),
+        ('ImageCount3', c_uint),
+        ('ElectronicFrontCurtainShutter', c_uint),
+        ('MeteringMode2', c_ushort),
+        ('SonyDateTime', c_char * 20),
+        ('TimeStamp', c_ubyte * 6),
+        ('ShotNumberSincePowerUp', c_uint),
+     ]
 
 
 class libraw_makernotes_t(Structure):
 
     _fields_ = [
         ('canon', libraw_canon_makernotes_t),
+        ('nikon', libraw_nikon_makernotes_t),
+        ('hasselblad', libraw_hasselblad_makernotes_t),
         ('fuji', libraw_fuji_info_t),
         ('olympus', libraw_olympus_makernotes_t),
         ('sony', libraw_sony_info_t),
+        ('kodak', libraw_kodak_makernotes_t),
+        ('panasonic', libraw_panasonic_makernotes_t),
+        ('pentax', libraw_pentax_makernotes_t),
     ]
 
 
@@ -608,10 +708,10 @@ class libraw_data_t(Structure):
         ('parent_class', c_void_p),
     ]
 
-class xtrans_params(Structure):
+class fuji_compressed_params(Structure):
 
     _fields_ = [
-        ('q_table', POINTER(c_char)),
+        ('q_table', POINTER(c_int8)),
         ('q_points', c_int * 5),
         ('max_bits', c_int),
         ('min_value', c_int),

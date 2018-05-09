@@ -15,6 +15,7 @@ from libraw.errors import c_error
 from libraw import structs_16
 from libraw import structs_17
 from libraw import structs_18
+from libraw import structs_19
 
 
 class LibRaw(CDLL):
@@ -43,6 +44,7 @@ class LibRaw(CDLL):
                 16: structs_16,
                 17: structs_17,
                 18: structs_18,
+                19: structs_19,
             }[self.version_number[1]]
         except KeyError:
             raise ImportError(
