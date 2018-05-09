@@ -526,7 +526,7 @@ class libraw_pentax_makernotes_t(Structure):
     _fields_ = [
         ('FocusMode', c_ushort),
         ('AFPointMode', c_ubyte),
-        ('AFPointSelected', c_ushort),
+        ('AFPointSelected', c_ushort * 2),
         ('AFPointsInFocus', c_uint),
         ('DriveMode', c_ubyte * 4),
         ('SRResult', c_ubyte),
